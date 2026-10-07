@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>HPCL Retail Outlet Map</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+  :root{--bg:#fff;--fg:#1a1a1a;--muted:#666;--panel:#ffffffef;--line:#ddd;--brand:#0b5cab;}
+  @media (prefers-color-scheme: dark){:root{--bg:#1b1d21;--fg:#eee;--muted:#aaa;--panel:#1b1d21ef;--line:#444;--brand:#5aa7f0;}}
+  html,body{height:100%;margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--fg)}
+  #map{position:absolute;inset:0}
+  .bar{position:absolute;z-index:1000;top:10px;left:56px;right:10px;display:flex;gap:8px;flex-wrap:wrap;pointer-events:none}
+  .bar>*{pointer-events:auto}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 12px;box-shadow:0 2px 8px #0003;font-size:13px}
+  .card input,.card select{font:inherit;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--fg);min-width:0}
+  .card input{width:200px;max-width:100%}
+  .card b{color:var(--brand)}
+  .dl{cursor:pointer;border:0;background:var(--brand);color:#fff;font:inherit;font-weight:600;border-radius:10px;padding:8px 12px;box-shadow:0 2px 8px #0003}
+  .pop h3{margin:0 0 6px;font-size:15px;line-height:1.25;color:#0b5cab}
+  .pop table{border-collapse:collapse;font-size:13px;color:#222}
+  .pop td{padding:2px 6px 2px 0;vertical-align:top}
+  .pop td:first-child{font-weight:600;color:#555;white-space:nowrap}
+  .pop a.dir{display:block;margin-top:8px;text-align:center;background:#1a73e8;color:#fff !important;text-decoration:none;padding:8px 10px;border-radius:6px;font-weight:600}
+  .leaflet-popup-content{margin:12px 14px}
+</style>
+</head>
+<body>
+<div id="map"></div>
+<div class="bar">
+  <div class="card"><b id="count"></b> outlets</div>
+  <div class="card"><input id="q" type="search" placeholder="Search name, SAP code, location"></div>
+  <div class="card"><select id="dist"><option value="">All districts</option></select></div>
+  <button class="dl" id="dl" title="Save this map as an HTML file">⬇ Download HTML</button>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+// Capture a clean copy of the page source before the map modifies the DOM
+const SOURCE = "<!DOCTYPE html>\n" + document.documentElement.outerHTML;
+
+const OUTLETS = [{"n": "MSHSD SHIV PETROLEUM", "s": "41041932", "sa": "Alwar", "l": "Mundiya", "d": "Alwar", "lat": 27.38293, "lng": 76.640545}, {"n": "M/S RAMESH AUTO, PATOLI", "s": "41049604", "sa": "Alwar", "l": "TAH. TODABHIM", "d": "Dausa", "lat": 26.98419, "lng": 76.81893}, {"n": "MSHSD SHRI PYARELAL FILLING STATION", "s": "41030016", "sa": "Alwar", "l": "Arruwa", "d": "Alwar", "lat": 27.297109, "lng": 77.068317}, {"n": "M/s Balot Traders", "s": "41034218", "sa": "Alwar", "l": "GOTH", "d": "Alwar", "lat": 27.2174174, "lng": 76.6154587}, {"n": "M/s RATAN SERVICE STATION, BANDIKUI", "s": "41049435", "sa": "Alwar", "l": "PO BANDIKUI", "d": "Dausa", "lat": 27.035798, "lng": 76.56573}, {"n": "M/S KALYAN FILLING STATION", "s": "41034215", "sa": "Alwar", "l": "JHAJHARWALA", "d": "Dausa", "lat": 27.0501646, "lng": 76.2799525}, {"n": "MSHSD OM SAGAR PETROLEUM", "s": "41041933", "sa": "Alwar", "l": "Khedapahadpur", "d": "Dausa", "lat": 26.965411, "lng": 76.741047}, {"n": "KHANDELWAL & SONS", "s": "41049716", "sa": "Alwar", "l": "LACHMANGARH", "d": "Alwar", "lat": 27.365, "lng": 76.86}, {"n": "MSHSD SUMAN PETROLEUMS", "s": "41041934", "sa": "Alwar", "l": "MIA", "d": "Alwar", "lat": 27.501382, "lng": 76.689991}, {"n": "MSHSD SAINI FILLING STATION", "s": "41030043", "sa": "Alwar", "l": "ALUDA", "d": "Dausa", "lat": 26.8126362, "lng": 76.3827043}, {"n": "M/s Baba Bharthari Filling Station", "s": "41034237", "sa": "Alwar", "l": "NARAYANPUR", "d": "Kotputli-Behror", "lat": 27.505136, "lng": 76.296738}, {"n": "MSHSD SHREE KRISHNA PETROLEUM", "s": "41029999", "sa": "Alwar", "l": "Badh Dhundhla", "d": "Kotputli-Behror", "lat": 27.688762, "lng": 76.326016}, {"n": "M/s UDAILAL MAHAVEER PRASAD JAIN", "s": "41049717", "sa": "Alwar", "l": "LALSOT", "d": "Dausa", "lat": 26.563199, "lng": 76.329714}, {"n": "M/S BADRI PRASAD SURYA PRAKASH, MAHWA", "s": "41049718", "sa": "Alwar", "l": "DAUSA", "d": "Dausa", "lat": 27.061134, "lng": 76.964985}, {"n": "M/s LALLUPRASAD JAIN", "s": "41049778", "sa": "Alwar", "l": "DAUSA,RAJASTHAN", "d": "Dausa", "lat": 26.89833, "lng": 76.32376}, {"n": "M/S GANGA SAHAI & SONS, ALWAR", "s": "41043731", "sa": "Alwar", "l": "ALWAR", "d": "Alwar", "lat": 27.6112, "lng": 76.64065}, {"n": "M/S LAXMAN SWAROOP & CO, DAUSA", "s": "41048950", "sa": "Alwar", "l": "DAUSA DT JAIPUR", "d": "Dausa", "lat": 26.89845, "lng": 76.33271}, {"n": "M/S SHARMA & CO, LALSOT", "s": "41048776", "sa": "Alwar", "l": "LALSOT", "d": "Dausa", "lat": 26.55690485, "lng": 76.33234169}, {"n": "M/S BEHARIRAM S. RAM, ALWAR", "s": "41049278", "sa": "Alwar", "l": "ALWAR", "d": "Alwar", "lat": 27.578728, "lng": 76.6298993}, {"n": "M/S MODERN SERVICE STATION", "s": "41049796", "sa": "Alwar", "l": "ALWAR", "d": "Alwar", "lat": 27.56429, "lng": 76.61401}, {"n": "M/S ADARSH AUTOMOBILES, GOVINDGARH", "s": "41049898", "sa": "Alwar", "l": "GOVINDGARH", "d": "Alwar", "lat": 27.49818, "lng": 76.99388}, {"n": "MSHSD KRISHI KALPTARU FILL. STN, RAMGARH", "s": "41049602", "sa": "Alwar", "l": "PO RAMGARH", "d": "Alwar", "lat": 27.58309, "lng": 76.81073}, {"n": "M/S ARYA SERVICE CENTER, RENI", "s": "41049427", "sa": "Alwar", "l": "P O RENI", "d": "Alwar", "lat": 27.181942, "lng": 76.738177}, {"n": "M/S SHREE RAM S. STN, KHERLI", "s": "41049614", "sa": "Alwar", "l": "KHERLI", "d": "Alwar", "lat": 27.219495, "lng": 77.040412}, {"n": "M/S CHOUDHARY AGRO SERVICE, MUNDAWAR", "s": "41048871", "sa": "Alwar", "l": "POST MUNDAWAR", "d": "Khairthal-Tijara", "lat": 27.86957, "lng": 76.5455}, {"n": "M/S DHAWLA SERVICE STN., AKBARPUR", "s": "41049127", "sa": "Alwar", "l": "RAJSTHAN", "d": "Alwar", "lat": 27.454225, "lng": 76.541446}, {"n": "M/S SANWAL SERVICE STATION, NARAYANPUR", "s": "41029671", "sa": "Alwar", "l": "NARAYANPUR", "d": "Kotputli-Behror", "lat": 27.51687, "lng": 76.31169}, {"n": "M/S JANU SERVICE STATION, ALWAR", "s": "41029646", "sa": "Alwar", "l": "ALWAR RAJASTHAN", "d": "Alwar", "lat": 27.56315, "lng": 76.62505}, {"n": "M/S LUXMI AUTO, GEEJGARH", "s": "41028182", "sa": "Alwar", "l": "VILL-GEEJGARH", "d": "Dausa", "lat": 26.878143, "lng": 76.655353}, {"n": "MSHSD SITARAM FILLING STATION", "s": "41028020", "sa": "Alwar", "l": "PO: SONAD", "d": "Dausa", "lat": 26.695785, "lng": 76.1978033}, {"n": "M/S SURYA FILLING STATION, GARH", "s": "41020847", "sa": "Alwar", "l": "VILLAGE: GARH", "d": "Dausa", "lat": 26.83285, "lng": 76.50364}, {"n": "M/S BANSAL HP CENTRE, MAHWA", "s": "41017764", "sa": "Alwar", "l": "MAHWA MUNDAWAR ROAD", "d": "Dausa", "lat": 27.054866, "lng": 76.920406}, {"n": "M/S MAAN HIGHWAY SERVICE STATION, BEHROR", "s": "41017773", "sa": "Alwar", "l": "BEHROR", "d": "Kotputli-Behror", "lat": 27.8772, "lng": 76.27884}, {"n": "M/S SRI RAM FILLING STATION, DUBBI RETA", "s": "41018044", "sa": "Alwar", "l": "DUBBI-RETA", "d": "Dausa", "lat": 26.926895, "lng": 76.510434}, {"n": "M/S PRATAPGARH FILLING STN, PRATAPGARH", "s": "41018048", "sa": "Alwar", "l": "PRATAPGARH-THANAGAZI ROAD", "d": "Alwar", "lat": 27.2622, "lng": 76.1647}, {"n": "M/S JAGDAMBA FILLING STATION, THANAGAZI", "s": "41018053", "sa": "Alwar", "l": "THANAGAZI", "d": "Alwar", "lat": 27.40434, "lng": 76.30122}, {"n": "M/S RAVI ROADLINES, ALWAR", "s": "41018059", "sa": "Alwar", "l": "VILLAGE GOLETA", "d": "Alwar", "lat": 27.53497, "lng": 76.69486}, {"n": "M/S SAHEBJI FILLING STATION, ALWAR", "s": "41018356", "sa": "Alwar", "l": "ALWAR-JAIPUR ROAD", "d": "Alwar", "lat": 27.5282664, "lng": 76.60440536}, {"n": "M/S TRIPURARI FILLING STATION, ALWAR", "s": "41018361", "sa": "Alwar", "l": "MANU MARG", "d": "Alwar", "lat": 27.5513393, "lng": 76.60393026}, {"n": "M/S DEV KIRAN PETRO SERVICES, PIPALKHEDA", "s": "41018370", "sa": "Alwar", "l": "VILLAGE PIPALKHEDA", "d": "Dausa", "lat": 26.998448, "lng": 76.840271}, {"n": "M/S BAGADI FILLING STATION, BADAGAON", "s": "41018368", "sa": "Alwar", "l": "DAUSA LALSOT ROAD, NH-11A", "d": "Dausa", "lat": 26.817981, "lng": 76.336034}, {"n": "M/S SARITA FILLING STATION, KITHOOR", "s": "41018369", "sa": "Alwar", "l": "VILLAGE KITHOOR", "d": "Alwar", "lat": 27.707779, "lng": 76.736568}, {"n": "M/S DEEGWAL FILLING STATION", "s": "41018384", "sa": "Alwar", "l": "ALWAR", "d": "Alwar", "lat": 27.54514, "lng": 76.6339}, {"n": "MSHSD SHREE MAHADEV & SONS PETRO STN", "s": "41018401", "sa": "Alwar", "l": "RAJGARH", "d": "Alwar", "lat": 27.192335, "lng": 76.610638}, {"n": "M/S HAMARA PUMP BARODAKAN, BARODAKAN", "s": "41018404", "sa": "Alwar", "l": "BARODAKAN", "d": "Alwar", "lat": 27.36098, "lng": 76.97053}, {"n": "M/SHP KHATANA FILLING STATION, BAREETKI", "s": "41018615", "sa": "Alwar", "l": "MAHWA", "d": "Dausa", "lat": 27.02615, "lng": 76.930487}, {"n": "M/S HP BG FILLING STATION, ALWAR", "s": "41018424", "sa": "Alwar", "l": "ALWAR", "d": "Alwar", "lat": 27.5139, "lng": 76.68534}, {"n": "M/S RAMAWATAR CHOUDHARY FS, DAUSA", "s": "41018623", "sa": "Alwar", "l": "DAUSA", "d": "Dausa", "lat": 26.900544, "lng": 76.339017}, {"n": "M/S HP GEHLOT FILLING STATION, LAWAN", "s": "41018627", "sa": "Alwar", "l": "LAWAN", "d": "Dausa", "lat": 26.7748421, "lng": 76.207518}, {"n": "M/S HP SHIV SHAKTI FILLING STN, MANPUR", "s": "41018634", "sa": "Alwar", "l": "VILLAGE SAWAS, SIKANDRA", "d": "Dausa", "lat": 26.95391, "lng": 76.6338133}, {"n": "M/S HP D & D COMPANY, DADAR", "s": "41018645", "sa": "Alwar", "l": "DADAR", "d": "Alwar", "lat": 27.4672333, "lng": 76.6060933}, {"n": "M/S HP LAXMI FILLING STATION, BALAJI", "s": "41018650", "sa": "Alwar", "l": "VILLAGE MEENA SIMLA", "d": "Dausa", "lat": 26.9638462, "lng": 76.7863752}, {"n": "M/S HP HARYANA FILLING STATION, DIDWANA", "s": "41018652", "sa": "Alwar", "l": "VILLAGE DIDWANA", "d": "Dausa", "lat": 26.603095, "lng": 76.328848}, {"n": "M/S HAMARA PUMP KANIKA F S, ABHANERI", "s": "41016459", "sa": "Alwar", "l": "VILLAGE UNBADAGOAN, ABHANERI", "d": "Dausa", "lat": 27.003461, "lng": 76.593167}, {"n": "M/S HARI PRABHAT PETROLEUM, BAHARAWANDA", "s": "41018687", "sa": "Alwar", "l": "THESIL SIKRAI", "d": "Dausa", "lat": 26.80575, "lng": 76.583027}, {"n": "M/S HAMARA PUMP BHANDAREJ F S, BHANDAREJ", "s": "41016461", "sa": "Alwar", "l": "VILLAGE BHANDAREJ", "d": "Dausa", "lat": 26.8983783, "lng": 76.4190666}, {"n": "M/S NARDYA FILLING STATION, DIDWANA", "s": "41016457", "sa": "Alwar", "l": "VILLAGE DEEDWANA", "d": "Dausa", "lat": 26.602681, "lng": 76.304008}, {"n": "M/S KAUSHAL FILLING STATION", "s": "41016479", "sa": "Alwar", "l": "TEHLA", "d": "Alwar", "lat": 27.24950069, "lng": 76.41303134}, {"n": "M/S POORAN FILLING CENTRE, KHAIRTHAL", "s": "41016488", "sa": "Alwar", "l": "BAS KRIPAL NAGAR", "d": "Khairthal-Tijara", "lat": 27.81646135, "lng": 76.70224589}, {"n": "M/S CHOUDHARY FILLING STN, BAGAD RAJPUT", "s": "41002795", "sa": "Alwar", "l": "SH-14", "d": "Alwar", "lat": 27.51045818, "lng": 76.76296602}, {"n": "M/S SHAHEED BHAGCHAND F/S, PATAN", "s": "41002810", "sa": "Alwar", "l": "VILLAGE RAMPURA PATAN", "d": "Alwar", "lat": 27.17638337, "lng": 76.93438036}, {"n": "M/S SHRI MANGLAM FILLING STN, KATHOOMAR", "s": "41002817", "sa": "Alwar", "l": "KATHUMAR", "d": "Alwar", "lat": 27.3243, "lng": 77.0815}, {"n": "M/S HARSH VARDHAN FILLING STN, DIGHAWADA", "s": "41002828", "sa": "Alwar", "l": "VILLAGE DIGAWADA", "d": "Alwar", "lat": 27.31214637, "lng": 76.62339431}, {"n": "M/S SHIV SHAKTI FS, KHANBHANKRI", "s": "41002832", "sa": "Alwar", "l": "DAUSA KUNDAL ROAD", "d": "Dausa", "lat": 26.93543, "lng": 76.384871}, {"n": "M/S SHRI SHYAM FILLING STATION, SODAWAS", "s": "41002950", "sa": "Alwar", "l": "SODAWAS", "d": "Khairthal-Tijara", "lat": 27.82900045, "lng": 76.4346419}, {"n": "M/S KANKARIYA FILLING STATION, BAGADI", "s": "41041646", "sa": "Alwar", "l": "LALSOT TO SAWAIMADHOPUR ROAD", "d": "Dausa", "lat": 26.463733, "lng": 76.374446}, {"n": "M/S SHREE RAMAN BIHARI FS, IMLALI", "s": "41041897", "sa": "Alwar", "l": "ALWAR", "d": "Alwar", "lat": 27.4732916, "lng": 76.910525}, {"n": "M/S SHRI NARAYAN FLG STN, BADKESARPUR", "s": "41041906", "sa": "Alwar", "l": "BADKESARPUR", "d": "Alwar", "lat": 27.511192, "lng": 76.576626}, {"n": "M/S MAA NAHAR SHAKTI FS, PEECHUPARDA", "s": "41041909", "sa": "Alwar", "l": "BASWA,", "d": "Dausa", "lat": 26.9982075, "lng": 76.5701262}, {"n": "MSHSD NEHAL SERVICE STATION", "s": "41041912", "sa": "Alwar", "l": "ALWAR", "d": "Alwar", "lat": 27.6267, "lng": 76.6063}, {"n": "MSHSD BASETH HP FILLING STATION", "s": "41018040", "sa": "Alwar", "l": "VILLAGE BASETH", "d": "Alwar", "lat": 27.28993, "lng": 76.98046}, {"n": "KAPTAN FILLING STATION", "s": "41066671", "sa": "Alwar", "l": "Beejwar", "d": "Alwar", "lat": 27.406012, "lng": 76.574367}, {"n": "RRSD Filling Station", "s": "41072613", "sa": "Alwar", "l": "HAROSORA", "d": "Kotputli-Behror", "lat": 27.787716, "lng": 76.450417}, {"n": "M/S PATH DME CH 99 LHS", "s": "41034245", "sa": "Alwar", "l": "Chainage 99+550 LHS Delhi-Mumbai Expressway", "d": "Alwar", "lat": 27.501528, "lng": 76.860922}, {"n": "M/S PATH DME CH 125 LHS", "s": "41034247", "sa": "Alwar", "l": "Chainage 125+752 LHS on Delhi-Mumbai Expressway", "d": "Alwar", "lat": 27.281642, "lng": 76.77375}, {"n": "Sanwariya Filling Station", "s": "41068821", "sa": "Alwar", "l": "Bandana", "d": "Dausa", "lat": 26.89603, "lng": 76.26405}, {"n": "LAKSHMI PETROLEUM", "s": "41071613", "sa": "Alwar", "l": "Village Bapi Tehsil sainthal", "d": "Dausa", "lat": 26.97308, "lng": 76.28427}, {"n": "M/S PATH DME CH 99 RHS", "s": "41034246", "sa": "Alwar", "l": "Chainage 99+620 RHS on Delhi-Mumbai Expressway", "d": "Alwar", "lat": 27.502091, "lng": 76.859658}, {"n": "DIAMOND PETROLEUM", "s": "41071612", "sa": "Alwar", "l": "Behror", "d": "Kotputli-Behror", "lat": 27.89442, "lng": 76.28451}, {"n": "M/S PATH DME CH 125 RHS", "s": "41034248", "sa": "Alwar", "l": "Chainage 125+480 RHS on Delhi-Mumbai Expressway", "d": "Alwar", "lat": 27.284397, "lng": 76.772747}, {"n": "HP KAILASH PETROLEUM", "s": "41085993", "sa": "Alwar", "l": "SALEMPURA", "d": "Dausa", "lat": 26.6467216, "lng": 76.3225233}, {"n": "MD FILLING STATION", "s": "41080147", "sa": "Alwar", "l": "BANSUR", "d": "Kotputli-Behror", "lat": 27.6928181, "lng": 76.3568236}, {"n": "ADHOC SAINI FILLING STATION", "s": "41079424", "sa": "Alwar", "l": "DAUSA", "d": "Dausa", "lat": 26.913248, "lng": 76.686655}, {"n": "SHARDA PETROLEUM", "s": "41090131", "sa": "Alwar", "l": "Hingota", "d": "Alwar", "lat": 27.40818, "lng": 76.8688}, {"n": "HP KISHAN CHOUDHARY FILLING STATION", "s": "41090120", "sa": "Alwar", "l": "DHANKHERA", "d": "Alwar", "lat": 27.4754055, "lng": 76.7302251}, {"n": "SONKHIYA HP FILLING STATION", "s": "41089936", "sa": "Alwar", "l": "NADKA", "d": "Alwar", "lat": 27.5507558221, "lng": 76.774277635939}, {"n": "VAIBHAV HP FILLING STATION", "s": "41089209", "sa": "Alwar", "l": "JATKA", "d": "Alwar", "lat": 27.8374244, "lng": 76.7400553}];
+
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+const map = L.map('map');
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 19, attribution: '&copy; OpenStreetMap contributors'
+}).addTo(map);
+
+const icon = L.divIcon({
+  className:'',
+  html:'<svg width="28" height="38" viewBox="0 0 28 38"><path d="M14 0C6.3 0 0 6.2 0 13.8 0 24 14 38 14 38s14-14 14-24.2C28 6.2 21.7 0 14 0z" fill="#d6212a" stroke="#fff" stroke-width="1.5"/><circle cx="14" cy="13.5" r="5.5" fill="#fff"/><circle cx="14" cy="13.5" r="3" fill="#0b5cab"/></svg>',
+  iconSize:[28,38], iconAnchor:[14,38], popupAnchor:[0,-34]
+});
+
+function popupHtml(o){
+  const lat = o.lat.toFixed(6), lng = o.lng.toFixed(6);
+  const url = `https://www.google.com/maps/dir/?api=1&destination=${o.lat},${o.lng}`;
+  return `<div class="pop"><h3>${esc(o.n)}</h3><table>
+    <tr><td>SAP Code</td><td>${esc(o.s)}</td></tr>
+    <tr><td>Location</td><td>${esc(o.l)}</td></tr>
+    <tr><td>District</td><td>${esc(o.d)}</td></tr>
+    <tr><td>Lat / Long</td><td>${lat}, ${lng}</td></tr></table>
+    <a class="dir" href="${url}" target="_blank" rel="noopener">🚗 Get Directions in Google Maps</a></div>`;
+}
+
+const group = L.layerGroup().addTo(map);
+const markers = OUTLETS.map(o => ({o, m: L.marker([o.lat, o.lng], {icon, title:o.n}).bindPopup(popupHtml(o), {maxWidth:300})}));
+
+const distSel = document.getElementById('dist');
+[...new Set(OUTLETS.map(o=>o.d))].sort().forEach(d=>{
+  const op=document.createElement('option'); op.value=d; op.textContent=d; distSel.appendChild(op);
+});
+
+function render(fit){
+  const q = document.getElementById('q').value.trim().toLowerCase();
+  const d = distSel.value;
+  group.clearLayers();
+  const shown = markers.filter(({o}) =>
+    (!d || o.d===d) && (!q || (o.n+' '+o.s+' '+o.l+' '+o.d).toLowerCase().includes(q)));
+  shown.forEach(({m}) => group.addLayer(m));
+  document.getElementById('count').textContent = shown.length + ' / ' + OUTLETS.length;
+  if (fit && shown.length) map.fitBounds(L.latLngBounds(shown.map(({o})=>[o.lat,o.lng])).pad(0.1));
+  return shown;
+}
+render(true);
+document.getElementById('q').addEventListener('input', ()=>{ const s=render(true); if(s.length===1) s[0].m.openPopup(); });
+distSel.addEventListener('change', ()=>render(true));
+
+document.getElementById('dl').addEventListener('click', ()=>{
+  const blob = new Blob([SOURCE], {type:'text/html'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = 'HPCL_outlet_map.html';
+  document.body.appendChild(a); a.click(); a.remove();
+});
+</script>
+</body>
+</html>
